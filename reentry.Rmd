@@ -1,0 +1,131 @@
+---
+title: "Racial Disparities among Re-Entry Outcomes:"
+subtitle: "Example Research Problem and Analysis Solutions"
+author: "Mari Roberts"
+date: "4/2/2021"
+output: pdf_document
+---
+
+Client Generated Research Question: But before I build policy and practice, I need some facts regarding what’s going on. Do people of color experience a higher number re-entry challenges than whites, and does this impact their ability to remain out of prison?
+
+**Data Details:** Includes short surveys of 1,020 individuals, recently released from state prison in Maricopa County, Arizona and tracked over a 2-year time period. There are three waves of data: wave 1 takes places about 1 month before the individual is released from prison, wave 2 takes place about 1-year post-release, and wave 3 takes place about 2 years post-release. Personal characteristics that are time-invariant assessed prior to release from prison. Time-varying characteristics are assessed at 1- and 2-years post-release from prison. Recidivism is defined as re-incarceration or returning to prison and verified using administrative data (i.e., ADOC confirms the respondent was re-incarcerated). While all individuals were surveyed regardless of whether or not they were incarcerated at either waves 2 or 3, some time-varying characteristics will be not applicable if the individual has been re-incarcerated.
+
+# Data Cleaning
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# load necessary packages
+requiredPackages = c('dplyr',
+                     'readr',
+                     'readxl',
+                     'haven',
+                     'ggplot2',
+                     'tidyverse')
+# only downloads packages if needed
+for(p in requiredPackages){
+  if(!require(p,character.only = TRUE)) install.packages(p)
+  library(p,character.only = TRUE)
+}
+
+# custom theme
+theme_csgjc <- theme(axis.ticks = element_blank(),
+                     axis.text.y = element_blank(),
+                     axis.text.x = element_text(vjust = 8, margin = margin(t = 6),size=11,face="bold"),
+                     #axis.title.y = element_blank(),
+                     #axis.title.x = element_blank(),
+                     panel.border = element_blank(), 
+                     panel.grid.major.x = element_blank(), 
+                     panel.grid.minor.x = element_blank(), 
+                     panel.grid.major.y = element_blank(), 
+                     panel.grid.minor.y = element_blank(),
+                     legend.title = element_blank(),
+                     legend.position = "right",
+                     plot.title = element_text(hjust = 0.5,size = 12, face = "bold"),
+                     plot.subtitle = element_text(hjust = 0.5, size = 15),
+                     plot.margin = margin(0, 0, 0, 0, "cm"))
+
+# import data
+reentry.dta <- read_dta("4_2_2021/reentry_data.dta")
+
+# duplicate for cleaning
+reentry <- reentry.dta
+
+# view data types
+str(reentry)
+
+# change to num variables
+reentry$age <- as.numeric(reentry$age)
+reentry$edu <- as.numeric(reentry$edu)
+reentry$lsir <- as.numeric(reentry$lsir)
+reentry$msf12 <- as.numeric(reentry$msf12)
+reentry$sf12 <- as.numeric(reentry$sf12)
+reentry$instrumentalss <- as.numeric(reentry$instrumentalss)
+reentry$emotionalss <- as.numeric(reentry$emotionalss)
+
+# change to factor variables
+names <- c("id","wave","race","white","black","asian","other","latinx","female","prioremp",
+           "partner","kids","pchronic","mchronic","disab","courtfees","recid","o10","employed",     
+           "empft","parole","ins","moneysource","nhd","aodtx","housingtype")
+reentry[,names] <- lapply(reentry[,names], factor)   
+
+# change race factor levels
+# reentry <- reentry %>% mutate(race2 = factor(race, levels = c("white", "black", "asian", "other", "latinx")))
+reentry$race <- case_when(reentry$race == 1 ~ "white",
+                               reentry$race == 2 ~ "black",
+                               reentry$race == 3 ~ "asian",
+                               reentry$race == 4 ~ "other",
+                               reentry$race == 5 ~ "latinx")
+
+# count unique people = 1020
+length(unique(reentry$id))
+
+# race data is missing in wave 1
+# add race based on other wave info
+reentry <- reentry %>% 
+  group_by(id) %>% 
+  fill(race, .direction = "up")
+```
+
+# Descriptive Statistics
+
+```{r message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+# view data
+table(reentry$employed,reentry$race)
+table(reentry$housingtype, reentry$race)
+table(reentry$nhd, reentry$race)
+
+# create a concerned variable based on mental health 
+reentry <- reentry %>% mutate(concerned = ifelse(msf12 > 2 | msf12 < -2,1,0))
+
+# chi-square tests
+chisq.test(table(reentry$race, reentry$employed))
+chisq.test(table(reentry$race, reentry$housingtype))
+chisq.test(table(reentry$race, reentry$nhd))
+chisq.test(table(reentry$race, reentry$msf12))
+chisq.test(table(reentry$race, reentry$concerned))
+```
+
+# Data Visualizations
+
+## Race and Mental Health
+
+```{r}
+# historgram of mental health
+ggplot(data=reentry, aes(reentry$msf12)) + 
+  geom_histogram(color="black", fill="white") + theme_bw() + theme_csgjc
+```
+
+## Race and Housing
+```{r}
+# race and housing
+df <- reentry %>% filter(wave==2) %>% group_by(race, housingtype) %>% summarise(total = n())
+df <- df %>% filter(race == "white" | race == "black" | 
+                      race == "asian" | race == "other" | 
+                      race == "latinx")
+
+# grouped barplot
+ggplot(df, aes(fill=race, y=total, x=housingtype)) + 
+    geom_bar(position="dodge", stat="identity") + theme_bw() + theme_csgjc +   
+    geom_text(aes(label = scales::comma(round(total), accuracy=1)), 
+              position = position_dodge2(width = 0.9, preserve = "single"),
+              vjust=-.5, hjust=.5,color="black", size=3.5, width = 0.65,fontface = "bold")
+```
