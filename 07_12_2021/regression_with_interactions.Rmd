@@ -1,0 +1,22 @@
+---
+title: "Racial Equity Training"
+author: "Mari Roberts"
+date: "7/12/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Data Cleaning
+
+```{r}
+library(haven)
+prison <- read_dta("07_12_2021/prison release data for disparity analysis 042021.dta")
+```
+
+```{r}
+
+```
+
